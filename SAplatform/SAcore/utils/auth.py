@@ -4,7 +4,7 @@ from .. import models
 
 class Authentication(BaseAuthentication):
     def authenticate(self, request):
-        token = request.data.get('token')
+        token = request.GET.get('token')
         # 检查用户的 token 是否合法
         token_obj = models.UserToken.objects.filter(token=token).first()
         if not token_obj:

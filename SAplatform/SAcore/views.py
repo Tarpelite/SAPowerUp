@@ -36,10 +36,10 @@ class AuthView(APIView):
             if not obj:
                 ret['code'] = 1001
                 ret['msg'] = '用户名或密码错误'
-            
-            token = md5(user)
-            UserToken.objects.update_or_create(user=obj, defaults={'token':token})
-            ret['token'] = token
+            else:   #测试发现的错误，没有else对于密码错误情况一样会执行下方代码
+                token = md5(user)
+                UserToken.objects.update_or_create(user=obj, defaults={'token':token})
+                ret['token'] = token
         
         except Exception as e:
             print(e)

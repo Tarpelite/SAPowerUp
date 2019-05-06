@@ -58,7 +58,7 @@ class ProfileView(APIView):
     #获得个人信息
     def get(self, request, *args, **kwargs):
 
-        token = request.data['token']
+        token = request.GET['token']
         user = UserToken.objects.filter(token = token).first().user
         user_se = UserSerializer(user)
         return JsonResponse(user_se.data)
@@ -105,7 +105,7 @@ class AuthorView(APIView):
 
     #获得专家个人信息
     def get(self, request, *args, **kwargs):
-        token = request.data['token']
+        token = request.GET['token']
         user = UserToken.objects.filter(token = token).first().user
         if user.Type == 'U':
             return JsonResponse({'msg':"该用户为普通用户，请先升级为专家用户"}, status=400)
@@ -152,12 +152,11 @@ class SearchView(APIView):
     '''
     authentication_classes = [Authentication,]
     def get(self, request, *args, **kwargs):
-        token = request.data['token']
+        token = request.GET['token']
         user = UserToken.objects.filter(token=token).first().user
         if not user:
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
-        data = request.data['data']
-        keyword = data['keyword']
+        keyword = request.GET['keyword']
         result = Resource.objects.filter(title__contains=keyword).order_by("id")
         pg = PageNumberPagination()
         page_result = pg.paginate_queryset(queryset=result, request=request, view=self)
@@ -173,10 +172,9 @@ class SearchDetailView(APIView):
 
     def get(self, request, *args, **kwargs):
         ret = {}
-        token = request.data['token']
+        token = request.GET['token']
         ret['token'] = token
-        data = request.data['data']
-        item_id = data['id']
+        item_id = request.GET['id']
         user = UserToken.objects.filter(token=token).first().user
         if not user:
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
@@ -209,7 +207,7 @@ class StarView(APIView):
     
     #列出当前用户的所有收藏
     def get(self, request, *args, **kwargs):
-        token = request.data['token']
+        token = request.GET['token']
         if not user:
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
         res = user.star_list.all()
@@ -261,10 +259,9 @@ class StarDetailView(APIView):
     #获得某一条资源的作者信息
     def get(self, request, *args, **kwargs):
         ret = {}
-        token = request.data['token']
+        token = request.GET['token']
         ret['token'] = token
-        data = request.data['data']
-        item_id = data['id']
+        item_Id = request.GET['id']
         user = UserToken.objects.filter(token=token).first().user
         if not user:
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
@@ -292,7 +289,7 @@ class FollowView(APIView):
     
     #列出所有关注的专家
     def get(self, request, *args, **kwargs):
-        token = request.data['token']
+        token = request.GET['token']
         if not user:
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
         res = user.follow_list.all()
@@ -342,7 +339,7 @@ class BuyedView(APIView):
     authentication_classes = [Authentication,]
     #列出所有已购资源
     def get(self, request, *args, **kwargs):
-        token = request.data['token']
+        token = request.GET['token']
         user = UserToken.objects.filter(token=token).first().user
         if not user:
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
@@ -385,7 +382,7 @@ class ResourceView(APIView):
     
     #获取资源文件或者url
     def get(self, request, *args, **kwargs):
-        token = request.data['token']
+        token = request.GET['token']
         user = UserToken.objects.filter(token=token).first().user
         if not user:
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)

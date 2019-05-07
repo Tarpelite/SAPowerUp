@@ -2,6 +2,16 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils.timezone import timedelta
 
+def md5(user):
+        import hashlib
+        import time
+
+        ctime = str(time.time())
+
+        m = hashlib.md5(bytes(user, encoding='utf-8'))
+        m.update(bytes(ctime, encoding='utf-8'))
+        return m.hexdigest()
+
 # Create your models here.
 class User(AbstractUser):
     '''
@@ -183,6 +193,18 @@ class Auction(models.Model):
 
     def __str__(self):
         return self.resource.title 
+
+class RechargeCard(models.Model):
+    '''
+        充值卡
+    '''
+    token = models.CharField(max_length=128, unique=True)
+    amount = models.IntegerField(default=0)
+
+    def __str__(self):
+        return self.key
+    
+    
 
 
 

@@ -8,6 +8,7 @@ from rest_framework import exceptions
 from SAcore.utils.auth import Authentication
 from django.utils import timezone
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.parsers import FileUploadParser
 
 # Create your views here.
 
@@ -40,6 +41,7 @@ class AuthView(APIView):
                 token = md5(user)
                 UserToken.objects.update_or_create(user=obj, defaults={'token':token})
                 ret['token'] = token
+                ret['type'] = obj.Type
         
         except Exception as e:
             print(e)
@@ -66,7 +68,7 @@ class ProfileView(APIView):
     #修改个人信息
     def post(self, request, *args, **kwargs):
         
-        token = request.data['token']
+        token = request.GET['token']
         user = UserToken.objects.filter(token = token).first().user
         data = request.data['data']
         user_se = UserSerializer(user, data=data)
@@ -78,7 +80,7 @@ class ProfileView(APIView):
     #申请成为专家
     def put(self, request, *args, **kwargs):
 
-        token = request.data['token']
+        token = request.GET['token']
         user = UserToken.objects.filter(token = token).first().user
         if not user:
             return JsonResponse({'msg':'用户认证失败'}, status=400)
@@ -115,7 +117,7 @@ class AuthorView(APIView):
     
     #修改专家个人信息
     def post(self, request, *args, **kwargs):
-        token = request.data['token']
+        token = request.GET['token']
         data = request.data['data']
         user = UserToken.objects.filter(token = token).first().user
         if user.Type == 'U':
@@ -218,7 +220,7 @@ class StarView(APIView):
 
     #批量添加收藏
     def post(self, request, *args, **kwargs):
-        token = request.data['token']
+        token = request.GET['token']
         if not user:
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
         data = request.data['data']
@@ -235,7 +237,7 @@ class StarView(APIView):
     
     #批量取消收藏
     def delete(self, request, *args, **kwargs):
-        token = request.data['token']
+        token = request.GET['token']
         if not user:
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
         data = request.data['data']
@@ -300,7 +302,7 @@ class FollowView(APIView):
     
     #批量添加关注
     def post(self, request, *args, **kwargs):
-        token = request.data['token']
+        token = request.GET['token']
         if not user:
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
         data = request.data['data']
@@ -316,7 +318,7 @@ class FollowView(APIView):
     
     #批量取消关注
     def delete(self, request, *args, **kwargs):
-        token = request.data['token']
+        token = request.GET['token']
         if not token:
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
         data = request.data['data']
@@ -351,7 +353,7 @@ class BuyedView(APIView):
     
     #购买资源
     def post(self, request, *args, **kwargs):
-        token = request.data['token']
+        token = request.GET['token']
         user = UserToken.objects.filter(token=token).first().user
         if not user:
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
@@ -421,6 +423,158 @@ class ResourceView(APIView):
             }
         }
         return JsonResponse(ret)
+
+
+
+class AvatorView(APIView):
+    '''
+        头像相关业务
+    '''
+
+    #验证身份
+    authentication_classes = [Authentication,]
+
+    #获取头像
+    def get(self, request, *args, **kwargs):
+        token = request.GET['token']
+        user = UserToken.objects.filter(token=token).first().user
+        if not user:
+            return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
+        if user.Type == 'U':
+            ret = {
+                'url':user.avator.file.url
+            }
+            return JsonResponse(ret)
+        elif user.Type == 'E':
+            au = Author.objects.filter(bind=user).first()
+            if not au:
+                return JsonResponse({'msg':'未找到对应专家用户，请确认身份'}, status=400)
+            ret = {
+                'url':au.avator.file.url
+            }
+            return JsonResponse(ret)
+    
+    #上传头像
+    def post(self, request, *args, **kwargs):
+        token = request.GET['token']
+        user = UserToken.objects.filter(token=token).first().user
+        if not user:
+            return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
+        if user.Type == 'U':
+            se = UserAvatorSerializer(user, data=request.data, files=request.FILES)
+            if se.is_valid():
+                se.save()
+                return JsonResponse(se.data)
+            return JsonResponse(se.errors, status=400)
+        elif user.Type == 'E':
+            au = Author.objects.filter(bind=user).first()
+            if not au:
+                 return JsonResponse({'msg':'未找到对应专家用户，请确认身份'}, status=400)
+            se = AuthorAvatorSerializer(au, data=request.data, files=request.FILES)
+            if se.is_valid():
+                se.save()
+                return JsonResponse(se.data)
+            return JsonResponse(se.errors, status=400)
+        
+
+class CoworkerView(APIView):
+    '''
+        关系图相关业务
+    '''
+
+    #验证身份
+    authentication_classes = [Authentication,]
+
+    #获取关系矩阵
+    def get(self, request, *args, **kwargs):
+        token = request.GET['token']
+        user = UserToken.objects.filter(token=token).first().user
+        if not user:
+            return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
+        nodes = []
+        edges = []
+        query_set = user.coworkers.all()
+        for n1 in query_set :
+            name = n1.name
+            if name not in nodes:
+                nodes.append(name)
+            edges.append(
+                {
+                    'source':user.name,
+                    'target':n1.name,
+                    'weight':1,
+                    'name':'coworker'
+                }
+            )
+            n2_query_set = n1.coworkers.all()
+            for n2 in n2_query_set:
+                if n2.name in nodes:
+                    edges.append(
+                {
+                    'source':user.name,
+                    'target':n1.name,
+                    'weight':1,
+                    'name':'coworker'
+                }
+            )
+                else:
+                    continue
+        names = [
+            {"name":x} for x in nodes
+        ]
+        names.append(
+            {"name":user.name,
+            "symbol":star}
+        )
+        ret = {
+            "nodes":names,
+            "links":edges
+        }
+        return JsonResponse(ret)
+
+
+class AuctionView(APIView):
+    '''
+        转让资源（以拍卖形式）
+    '''
+
+    #用户认证
+    authentication_classes = [Authentication,]
+
+    #发起转让
+    def post(self, request, *args, **kwargs):
+        pass
+
+class RechargeView(APIView):
+    '''
+        充值视图
+    '''
+    #用户认证
+    authentication_classes = [Authentication,]
+
+    # 充值
+    def post(sefl, request, *args, **kwargs):
+        token = request.GET['token']
+        user = UserToken.objects.filter(token=token).first().user
+        if not user:
+            return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
+        key = request.data['key']
+        card = RechargeCard.objects.filter(token=key).first()
+        if not card:
+            return JsonResponse({''})
+        
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

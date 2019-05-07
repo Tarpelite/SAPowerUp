@@ -44,6 +44,7 @@ class U2E_Admin(admin.ModelAdmin):
     )
     actions = [make_approved]
 
+admin.site.register(UserToken)
 
 
 

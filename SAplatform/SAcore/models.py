@@ -36,8 +36,8 @@ class Author(models.Model):
 
     name = models.CharField(max_length=255, unique=True)
     instituition = models.CharField(max_length=255, blank=True)
-    domain = models.CharField(max_length=255, blank=True)
-    bind = models.OneToOneField(User, on_delete=models.CASCADE, blank=True)
+    domain = models.CharField(max_length=255, blank=True, null=True)
+    bind = models.OneToOneField(User, on_delete=models.CASCADE, blank=True, null=True)
     citation_num = models.IntegerField(default=0, blank=True)
     article_num = models.IntegerField(default=0, blank=True)
     coworkers = models.ManyToManyField("self", blank=True)
@@ -94,13 +94,12 @@ class U2E_apply(models.Model):
         return self.user.username + " : " + self.name
 
     def approve(self):
-        try:
-            au1 = Author.objects.get(name = self.name)
-        except Author.DoesNotExist:
+        au1 = Author.objects.filter(name = self.name).first()
+        if not au1:
             au1 = Author.objects.create(name = self.name)
-        au1.institutition = self.instituition
+        au1.instituition = self.instituition
         au1.domain = self.domain
-        au1.bind = self.User
+        au1.bind = self.user
         try:
             au1.save()
             self.delete()

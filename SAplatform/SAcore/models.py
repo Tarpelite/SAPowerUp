@@ -110,6 +110,7 @@ class U2E_apply(models.Model):
         au1.instituition = self.instituition
         au1.domain = self.domain
         au1.bind = self.user
+        self.user.Type = "E"
         try:
             au1.save()
             self.delete()
@@ -184,12 +185,12 @@ class Auction(models.Model):
     '''
 
     start_au = models.ForeignKey(Author, related_name="start_au", on_delete=models.CASCADE)
-    participants = models.ManyToManyField(Author, related_name="participants")
+    participants = models.ManyToManyField(Author, related_name="participants", blank=True)
     resource = models.ForeignKey(Resource, on_delete=models.CASCADE)
     started_time = models.DateTimeField(auto_now_add=True)
     period = models.IntegerField(default=3600) #以秒为单位记录持续时间
     price = models.IntegerField(default=0)
-    candidate = models.ForeignKey(Author, related_name="candidate", on_delete=models.CASCADE)
+    candidate = models.ForeignKey(Author, related_name="candidate", on_delete=models.CASCADE, blank=True)
 
     def __str__(self):
         return self.resource.title 

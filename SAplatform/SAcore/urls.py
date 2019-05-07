@@ -9,7 +9,12 @@ urlpatterns = [
     path('register/', views.RegisterView.as_view()),
     path('search/', views.SearchView.as_view()),
     path('search_detail/', views.SearchDetailView.as_view()),
+    path('star/', views.StarView().as_view()),
     path('star_detail/', views.StarDetailView.as_view()),
     path('follow/', views.FollowView.as_view()),
     path('buy/', views.BuyedView.as_view()),
+    url(r'avator/$', views.AvatorView.as_view()),
+    path('auction/', views.AuctionView.as_view()),
+    path('recharge/', views.RechargeView.as_view()),
+
 ]

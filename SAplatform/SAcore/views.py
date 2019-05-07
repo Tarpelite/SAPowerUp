@@ -152,7 +152,10 @@ class SearchView(APIView):
     '''
     搜索视图
     '''
+    #用户认证
     authentication_classes = [Authentication,]
+
+    #获取搜索结果
     def get(self, request, *args, **kwargs):
         token = request.GET['token']
         user = UserToken.objects.filter(token=token).first().user
@@ -210,17 +213,19 @@ class StarView(APIView):
     #列出当前用户的所有收藏
     def get(self, request, *args, **kwargs):
         token = request.GET['token']
+        user = UserToken.objects.filter(token = token).first().user
         if not user:
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
-        res = user.star_list.all()
+        res = user.star_list.all().order_by("id")
         pg = PageNumberPagination()
         page_result = pg.paginate_queryset(queryset=res, request=request, view=self)
-        result_se = ResourceSerializer(isinstance=page_result, many=True)
-        return JsonResponse(result_se.data)
+        result_se = ResourceSerializer(instance=page_result, many=True)
+        return JsonResponse(result_se.data, safe=False)
 
     #批量添加收藏
     def post(self, request, *args, **kwargs):
         token = request.GET['token']
+        user = UserToken.objects.filter(token = token).first().user
         if not user:
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
         data = request.data['data']
@@ -238,6 +243,7 @@ class StarView(APIView):
     #批量取消收藏
     def delete(self, request, *args, **kwargs):
         token = request.GET['token']
+        user = UserToken.objects.filter(token = token).first().user
         if not user:
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
         data = request.data['data']
@@ -263,7 +269,7 @@ class StarDetailView(APIView):
         ret = {}
         token = request.GET['token']
         ret['token'] = token
-        item_Id = request.GET['id']
+        item_id = request.GET['id']
         user = UserToken.objects.filter(token=token).first().user
         if not user:
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
@@ -279,6 +285,11 @@ class StarDetailView(APIView):
             ret['authors'] = authors
         except Exception as e:
             return JsonResponse({'msg':"该资源不存在"}, status=400)
+        buyed_r = user.buyed_list.filter(pk=r1.id).first()
+        if buyed_r:
+            ret['buyed'] = True
+        else:
+            ret['buyed'] = False
         return JsonResponse(ret)
 
 
@@ -292,17 +303,19 @@ class FollowView(APIView):
     #列出所有关注的专家
     def get(self, request, *args, **kwargs):
         token = request.GET['token']
+        user = UserToken.objects.filter(token = token).first().user
         if not user:
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
-        res = user.follow_list.all()
+        res = user.followed_list.all()
         pg = PageNumberPagination()
         page_result = pg.paginate_queryset(queryset=res, request=request, view=self)
-        result_se = AuthorSerializer(isinstance=page_result, many=True)
-        return JsonResponse(result_se.data)
+        result_se = AuthorSerializer(instance=page_result, many=True)
+        return JsonResponse(result_se.data, safe=False)
     
     #批量添加关注
     def post(self, request, *args, **kwargs):
         token = request.GET['token']
+        user = UserToken.objects.filter(token = token).first().user
         if not user:
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
         data = request.data['data']
@@ -310,23 +323,25 @@ class FollowView(APIView):
         for i in follow_aus:
             try:
                 au = Author.objects.get(pk=i)
-                user.follow_list.add(au)
-                User.save()
+                user.followed_list.add(au)
+                user.save()
             except Exception as e:
+                print(e)
                 return JsonResponse({"msg":"添加关注失败"})
         return JsonResponse({"msg":"关注成功"},status=200)
     
     #批量取消关注
     def delete(self, request, *args, **kwargs):
         token = request.GET['token']
-        if not token:
+        user = UserToken.objects.filter(token = token).first().user
+        if not user:
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
         data = request.data['data']
         follow_aus = data['au_list']
         for i in follow_aus:
             try:
-                au = user.follow_list.get(pk=i)
-                user.follow_list.remove(au)
+                au = user.followed_list.get(pk=i)
+                user.followed_list.remove(au)
                 user.save()
             except Exception as e:
                 return JsonResponse({"msg":"取消关注失败"}, status = 400)
@@ -423,7 +438,6 @@ class ResourceView(APIView):
             }
         }
         return JsonResponse(ret)
-
 
 
 class AvatorView(APIView):
@@ -541,10 +555,50 @@ class AuctionView(APIView):
     #用户认证
     authentication_classes = [Authentication,]
 
+    #获取当前转让列表(未完成)
+    def get(self, request, *args, **kwargs):
+
+        token = request.GET['token']
+        user = UserToken.objects.filter(token=token).first().user
+        if not user:
+            return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
+        au  = Author.objects.filter(bind=user).first()
+        if not au:
+            return JsonResponse({'msg':"不是专家用户，无法查看拍卖"}, status=400)
+        res = Auction.objects.all()
+        ret = {}
+        return ret
+
+        
+
     #发起转让
     def post(self, request, *args, **kwargs):
-        pass
+        token = request.GET['token']
+        user = UserToken.objects.filter(token=token).first().user
+        if not user:
+            return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
+        au  = Author.objects.filter(bind=user).first()
+        if not au:
+            return JsonResponse({'msg':"不是专家用户，无法发起拍卖"}, status=400)
+        r_id = request.data['resource_id']
+        r1 = Resource.objects.filter(pk=r_id).first()
+        if not r1:
+            return JsonResponse({'msg':"该资源不存在"}, status=400)
+        if r1.owner.id != au.id:
+            return JsonResponse({'msg':"没有权限拍卖资源"}, status=400)
+        try:
+            Auction.objects.create(
+                start_au = au,
+                resource = r1,
+                started_time = request.data['start_time'],
+                period = request.data['period'],
+                price = request.data['price']
+            )
+        except Exception as e:
+            return JsonResponse({'msg':str(e)}, status=400)
+        return JsonResponse({"msg":"发起拍卖成功"}, status = 200)
 
+         
 class RechargeView(APIView):
     '''
         充值视图
@@ -561,7 +615,14 @@ class RechargeView(APIView):
         key = request.data['key']
         card = RechargeCard.objects.filter(token=key).first()
         if not card:
-            return JsonResponse({''})
+            return JsonResponse({'msg':"无效的充值卡"}, status = 400)
+        try:
+            user.balance +=card.amout
+            card.delete()
+        except Exception as e:
+            return JsonResponse({'msg':"充值失败"}, status=400)
+        return JsonResponse({'msg':"充值成功"}, status=200)
+    
         
 
 

@@ -13,7 +13,9 @@ urlpatterns = [
     path('star_detail/', views.StarDetailView.as_view()),
     path('follow/', views.FollowView.as_view()),
     path('buy/', views.BuyedView.as_view()),
+    path('resource_detail/', views.ResourceView().as_view()),
     url(r'avator/$', views.AvatorView.as_view()),
+    path('coworker/', views.CoworkerView.as_view()),
     path('auction/', views.AuctionView.as_view()),
     path('recharge/', views.RechargeView.as_view()),
 

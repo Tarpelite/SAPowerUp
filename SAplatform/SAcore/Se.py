@@ -22,3 +22,14 @@ class ResourceSerializer(serializers.ModelSerializer):
         model = Resource
         fields = ('id', 'title', 'intro', 'price', 'Type')
 
+class UserAvatorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ('avator',)
+
+class AuthorAvatorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Author
+        fields = ('avator',)
+
+        

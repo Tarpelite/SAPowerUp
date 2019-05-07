@@ -404,8 +404,7 @@ class ResourceView(APIView):
         if not user:
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
         flag = False
-        data = request.data['data']
-        item_id = data['item_id']
+        item_id = request.GET['item_id']
         url = ""
         try:
             r1 = Resource.objects.get(pk=item_id)
@@ -433,7 +432,6 @@ class ResourceView(APIView):
         ret = {
             'token':token,
             'data':{
-                'flag':flag,
                 'url':url
             }
         }
@@ -456,7 +454,7 @@ class AvatorView(APIView):
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
         if user.Type == 'U':
             ret = {
-                'url':user.avator.file.url
+                'url':user.avator.name.split('/')[-1]
             }
             return JsonResponse(ret)
         elif user.Type == 'E':
@@ -464,7 +462,7 @@ class AvatorView(APIView):
             if not au:
                 return JsonResponse({'msg':'未找到对应专家用户，请确认身份'}, status=400)
             ret = {
-                'url':au.avator.file.url
+                'url':au.avator.name.split('/')[-1]
             }
             return JsonResponse(ret)
     
@@ -474,8 +472,9 @@ class AvatorView(APIView):
         user = UserToken.objects.filter(token=token).first().user
         if not user:
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
+        image = request.FILES['image']
         if user.Type == 'U':
-            se = UserAvatorSerializer(user, data=request.data, files=request.FILES)
+            se = UserAvatorSerializer(user, data={'avator':image})
             if se.is_valid():
                 se.save()
                 return JsonResponse(se.data)
@@ -484,7 +483,7 @@ class AvatorView(APIView):
             au = Author.objects.filter(bind=user).first()
             if not au:
                  return JsonResponse({'msg':'未找到对应专家用户，请确认身份'}, status=400)
-            se = AuthorAvatorSerializer(au, data=request.data, files=request.FILES)
+            se = AuthorAvatorSerializer(au, data={'avator':image})
             if se.is_valid():
                 se.save()
                 return JsonResponse(se.data)
@@ -505,6 +504,10 @@ class CoworkerView(APIView):
         user = UserToken.objects.filter(token=token).first().user
         if not user:
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
+        au = Author.objects.filter(bind=user).first()
+        if not au:
+            return JsonResponse({'msg':"该用户不是专家用户"}, status=400)
+        user = au
         nodes = []
         edges = []
         query_set = user.coworkers.all()
@@ -538,7 +541,7 @@ class CoworkerView(APIView):
         ]
         names.append(
             {"name":user.name,
-            "symbol":star}
+            "symbol":"star"}
         )
         ret = {
             "nodes":names,

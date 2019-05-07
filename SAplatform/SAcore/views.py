@@ -327,7 +327,7 @@ class FollowView(APIView):
                 user.save()
             except Exception as e:
                 print(e)
-                return JsonResponse({"msg":"添加关注失败"})
+                return JsonResponse({"msg":"添加关注失败"},status=400)
         return JsonResponse({"msg":"关注成功"},status=200)
     
     #批量取消关注

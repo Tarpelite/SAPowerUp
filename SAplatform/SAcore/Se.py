@@ -32,4 +32,10 @@ class AuthorAvatorSerializer(serializers.ModelSerializer):
         model = Author
         fields = ('avator',)
 
+class AuctionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Auction
+        fields = ('id', 'title', 'started_time', 'price', 'period')
+
+
         

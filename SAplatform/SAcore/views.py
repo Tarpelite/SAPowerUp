@@ -8,9 +8,15 @@ from rest_framework import exceptions
 from SAcore.utils.auth import Authentication
 from django.utils import timezone
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.parsers import FileUploadParser
-
+from rest_framework.parsers import FileUploadParser, MultiPartParser
+from apscheduler.schedulers.background import BackgroundScheduler
+from django_apscheduler.jobstores import DjangoJobStore,register_events, register_job
+import datetime
 # Create your views here.
+
+scheduler = BackgroundScheduler()
+scheduler.add_jobstore(DjangoJobStore(), "default")
+scheduler.start()
 
 def md5(user):
         import hashlib
@@ -21,6 +27,61 @@ def md5(user):
         m = hashlib.md5(bytes(user, encoding='utf-8'))
         m.update(bytes(ctime, encoding='utf-8'))
         return m.hexdigest()
+
+def finish_auction(auc_id):
+    auc = Auction.objects.filter(id=auc_id).first()
+    try:
+        start_au = auc.start_au
+        resource = auc.resource
+        candidate = auc.candidate
+        price = auc.price
+        if not candidate:
+            Message.objects.create(
+                text = "无人出价，资源流拍" + resouce.title,
+                created_time = timezone.now(),
+                to_user = start_au
+            )
+            return False
+        if price > candidate.bind.balance:
+            Message.objects.create(
+                text = "拍卖结束，但你的余额不足，无法拍到"+resource.title,
+                created_time = timezone.now(),
+                to_user = candidate.bind
+            )
+            return False
+        else:
+            candidate.bind.balance -= price
+            candidate.resources.add(resource)
+            resource.owner = candidate
+            start_au.resources.remove(resource)
+            start_au.bind.balance += price
+            auc.delete()
+            candidate.save()
+            candidate.bind.save()
+            resource.save()
+            start_au.bind.save()
+            start_au.save()
+        Message.objects.create(
+            text = resource.title +  "\n拍卖结束，你已成功拍到该商品",
+            created_time = timezone.now(),
+            to_user = candidate.bind
+        )
+        return True
+    except Exception as e:
+        print(e)
+        Message.objects.create(
+            text = resource.title +  " 拍卖异常, 已取消",
+            created_time = timezone.now(),
+            to_user = candidate.bind
+        )
+        Message.objects.create(
+            text = resource.title +  " 拍卖异常, 已取消",
+            created_time = timezone.now(),
+            to_user = start_au.bind,
+        )
+        return False
+    return True
+    
 
 class AuthView(APIView):
     authentication_classes = []
@@ -105,6 +166,8 @@ class AuthorView(APIView):
     #用户认证
     authentication_classes = [Authentication,]
 
+    #文件parser
+    parser_classes = (MultiPartParser,)
     #获得专家个人信息
     def get(self, request, *args, **kwargs):
         token = request.GET['token']
@@ -129,7 +192,45 @@ class AuthorView(APIView):
             return JsonResponse(au_se.data)
         return JsonResponse(au_se.errors, status = 400)
     
-
+    #发布资源
+    def put(self, request, *args, **kwargs):
+        token = request.GET['token']
+        data = request.data
+        print(data)
+        attach_file = request.FILES['file']
+        user = UserToken.objects.filter(token = token).first().user
+        if user.Type == 'U':
+            return JsonResponse({'msg':"该用户为普通用户，请先升级为专家用户"}, status=400) 
+        au = Author.objects.filter(bind=user).first()
+        if not au:
+            return JsonResponse({'msg':"该用户尚未绑定专家用户"}, status=400)
+        try: 
+            apply = publish_apply.objects.create(
+                au = au,
+                title = data['title'],
+                intro = data['intro'],
+                url = data['url'],
+                price = data['price'],
+                Type = data['Type'],
+                created_time = timezone.now()
+            )
+        except Exception as e:
+            print(e)
+            return JsonResponse({'msg':"创建申请失败"}, status=400)
+        if attach_file:
+            apply.file.save(attach_file.name, attach_file, save=True)
+        authors_text = data['authors']
+        authors_names = authors_text.split(',')
+        for name in authors_names:
+            try:
+                au_ = Author.objects.get(name=name)
+            except Author.DoesNotExist:
+                au_ = Author.objects.create(name = name)
+            apply.authors.add(au_)
+        apply.save()
+        return JsonResponse({'msg':"创建成功"})
+            
+        
 class RegisterView(APIView):
     '''
     注册视图
@@ -569,39 +670,92 @@ class AuctionView(APIView):
         if not au:
             return JsonResponse({'msg':"不是专家用户，无法查看拍卖"}, status=400)
         res = Auction.objects.all()
-        ret = {}
-        return ret
-
-        
+        pg = PageNumberPagination()
+        page_result = pg.paginate_queryset(queryset=res, request=request, view=self)
+        result_se = ResourceSerializer(instance=page_result, many=True)
+        return JsonResponse(result_se.data, safe=False)
 
     #发起转让
     def post(self, request, *args, **kwargs):
         token = request.GET['token']
+        data = request.data['data']
         user = UserToken.objects.filter(token=token).first().user
         if not user:
             return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
         au  = Author.objects.filter(bind=user).first()
         if not au:
             return JsonResponse({'msg':"不是专家用户，无法发起拍卖"}, status=400)
-        r_id = request.data['resource_id']
-        r1 = Resource.objects.filter(pk=r_id).first()
+        r_id = data['resource_id']
+        r1 = Resource.objects.filter(id=r_id).first()
         if not r1:
             return JsonResponse({'msg':"该资源不存在"}, status=400)
         if r1.owner.id != au.id:
             return JsonResponse({'msg':"没有权限拍卖资源"}, status=400)
         try:
-            Auction.objects.create(
+            auc = Auction.objects.create(
                 start_au = au,
                 resource = r1,
-                started_time = request.data['start_time'],
-                period = request.data['period'],
-                price = request.data['price']
+                started_time = datetime.datetime.strptime(data['start_time'], "%Y-%m-%d %H:%M:%S"),
+                period = data['period'],
+                price = data['price']
             )
+            auc.save()
+            finished_time = auc.started_time + timedelta(seconds=data['period'])
+            scheduler.add_job(finish_auction, 'cron', id=str(auc.id), year=finished_time.year, month=finished_time.month, day = finished_time.day, misfire_grace_time=30, hour= finished_time.hour, minute=finished_time.minute, second=finished_time.second,args=[auc.id])
+            register_events(scheduler)
+        except Exception as e:
+            print(e)
+            scheduler.shutdown()
         except Exception as e:
             return JsonResponse({'msg':str(e)}, status=400)
         return JsonResponse({"msg":"发起拍卖成功"}, status = 200)
 
-         
+    # 出价
+    def put(self, request,*args, **kwargs):
+        token = request.GET['token']
+        user = UserToken.objects.filter(token=token).first().user
+        if not user:
+            return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
+        au  = Author.objects.filter(bind=user).first()
+        if not au:
+            return JsonResponse({'msg':"不是专家用户，无法查看拍卖"}, status=400)
+        
+        data = request.data
+        auc_id = data['id']
+        price = data['price']
+        auc = Auction.objects.filter(pk=auc_id).first()
+        if not auc:
+            return JsonResponse({"msg":"该拍卖不存在"}, status=400)
+        if price > auc.price:
+            auc.price = price
+            auc.candidate = au
+            auc.save()
+            return JsonResponse({'msg':"出价成功， 目前的价格是 "+str(price)})
+    
+    # 取消转让
+    def delete(self, request,*args, **kwargs):
+        token = request.GET['token']
+        user = UserToken.objects.filter(token=token).first().user
+        if not user:
+            return JsonResponse({'msg':"用户认证已失效，请重新登录"}, status=400)
+        au  = Author.objects.filter(bind=user).first()
+        if not au:
+            return JsonResponse({'msg':"不是专家用户，无法查看拍卖"}, status=400)
+        data = request.data
+        auc_id = request.data["id"]
+        auc = Auction.objects.filter(pk=auc_id).first()
+        if not auc:
+            return JsonResponse({'msg':'该拍卖不存在'},status=400)
+        if auc.resource.owner.id != au.id:
+            return JsonResponse({'msg': '没有权限'}, status=400)
+        try:
+            auc.delete()
+            return JsonResponse({'msg':"拍卖已取消"})
+        except Exception as e:
+            print(e)
+            return JsonResponse({'msg':"无法取消"}, status=400)
+    
+  
 class RechargeView(APIView):
     '''
         充值视图

@@ -31,6 +31,8 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.username
+    class Meta:
+        verbose_name_plural = '用户'
 
 class UserToken(models.Model):
     user = models.OneToOneField(to="User", on_delete=models.CASCADE)
@@ -38,6 +40,8 @@ class UserToken(models.Model):
 
     def __str__(self):
         return self.user.username
+    class Meta:
+        verbose_name_plural = '用户Token'
 
 class Author(models.Model):
     '''
@@ -58,6 +62,8 @@ class Author(models.Model):
 
     def __str__(self):
         return self.name
+    class Meta:
+        verbose_name_plural = '专家信息'
 
 
 class Resource(models.Model):
@@ -88,6 +94,9 @@ class Resource(models.Model):
 
     def __str__(self):
         return self.title
+    
+    class Meta:
+        verbose_name_plural = '科研资源信息'
 
 class U2E_apply(models.Model):
     '''
@@ -118,6 +127,8 @@ class U2E_apply(models.Model):
         except Exception as e:
             print(e)
             return False
+    class Meta:
+        verbose_name_plural = '获取专家权限申请'   
     
 
 
@@ -147,7 +158,7 @@ class publish_apply(models.Model):
     
     def approve(self):
         try:
-            r1 = Resource.object.create(
+            r1 = Resource.objects.create(
                 title = self.title,
                 intro = self.intro,
                 url = self.url,
@@ -156,6 +167,7 @@ class publish_apply(models.Model):
                 file = self.file,
                 owner = self.au
             )
+            authors = self.authors.all()
             for aut in authors:
                 r1.authors.add(aut)
                 aut.resources.add(r1)
@@ -165,18 +177,9 @@ class publish_apply(models.Model):
         except Exception as e:
             print(e)
             return False
+    class Meta:
+        verbose_name_plural = '发布资源申请'
 
-class Bidding(models.Model):
-
-    '''
-    竞价记录
-    '''
-
-    au = models.ForeignKey(Author, on_delete = models.CASCADE)
-    price = models.IntegerField(default=0)
-
-    def __str__(self):
-        return self.au.name + " -- " + str(self.price) 
 
 class Auction(models.Model):
 
@@ -185,15 +188,18 @@ class Auction(models.Model):
     '''
 
     start_au = models.ForeignKey(Author, related_name="start_au", on_delete=models.CASCADE)
-    participants = models.ManyToManyField(Author, related_name="participants", blank=True)
+    #title = models.CharField(max_length=255, blank=True)
+    #participants = models.ManyToManyField(Author, related_name="participants", blank=True)
     resource = models.ForeignKey(Resource, on_delete=models.CASCADE)
-    started_time = models.DateTimeField(auto_now_add=True)
+    started_time = models.DateTimeField()
     period = models.IntegerField(default=3600) #以秒为单位记录持续时间
     price = models.IntegerField(default=0)
-    candidate = models.ForeignKey(Author, related_name="candidate", on_delete=models.CASCADE, blank=True)
+    candidate = models.ForeignKey(Author, related_name="candidate", on_delete=models.CASCADE, blank=True, null=True)
 
     def __str__(self):
         return self.resource.title 
+    class Meta:
+        verbose_name_plural = '竞拍信息'
 
 class RechargeCard(models.Model):
     '''
@@ -203,8 +209,22 @@ class RechargeCard(models.Model):
     amount = models.IntegerField(default=0)
 
     def __str__(self):
-        return self.key
-    
+        return self.token
+    class Meta:
+        verbose_name_plural = '充值卡信息'
+
+class Message(models.Model):
+    '''
+        消息
+    '''
+    text = models.CharField(max_length=256)
+    created_time = models.DateTimeField(auto_now_add=True)
+    to_user = models.ForeignKey(User, on_delete=models.CASCADE, blank=True)
+
+    def __str__(self):
+        return self.text
+    class Meta:
+        verbose_name_plural = '消息'
     
 
 

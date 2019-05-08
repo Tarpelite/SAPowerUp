@@ -40,6 +40,8 @@ INSTALLED_APPS = [
     'SAcore',
     'rest_framework',
     'rest_framework.authtoken',
+    'jet_django',
+    'django_apscheduler'
 ]
 
 

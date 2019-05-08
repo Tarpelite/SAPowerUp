@@ -44,7 +44,37 @@ class U2E_Admin(admin.ModelAdmin):
     )
     actions = [make_approved]
 
+@admin.register(publish_apply)
+class publishAdmin(admin.ModelAdmin):
+    list_display=(
+        'title',
+        'au',
+        'Type',
+        'created_time',
+    )
+    actions = [make_approved]
+
+@admin.register(Auction)
+class AuctionAdmin(admin.ModelAdmin):
+    list_play = (
+        'start_au',
+        'resource',
+        'started_time',
+        'period',
+        'price',
+        'candidate'
+    )
+
+@admin.register(Message)
+class MessageAdmin(admin.ModelAdmin):
+    list_display = (
+        'text',
+        'created_time',
+        'to_user'
+    )
+
 admin.site.register(UserToken)
+
 
 
 
